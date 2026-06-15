@@ -12,15 +12,17 @@ variables:
     description: Unity Catalog name
     default: squad
   warehouse_id:
-    description: SQL warehouse ID for queries
+    description: SQL warehouse ID for queries (optional)
+    default: ""
   
 include:
   - resources/*.yml
 
-artifacts:
-  squad_wheel:
-    type: whl
-    path: .
+sync:
+  include:
+    - src/**
+    - notebooks/**
+    - configs/**
 
 resources:
   jobs:
