@@ -1,0 +1,35 @@
+# Code Owners for databricks_squad
+# These owners will be requested for review on PRs
+
+# Default owner for everything
+* @fnaadb
+
+# Schema contracts require architecture review
+/schemas/ @fnaadb
+
+# Bronze layer
+/src/bronze/ @fnaadb
+/notebooks/01_bronze_ingestion.py @fnaadb
+
+# Silver layer
+/src/silver/ @fnaadb
+/notebooks/02_silver_transforms.py @fnaadb
+
+# Gold layer
+/src/gold/ @fnaadb
+/notebooks/03_gold_analytics.py @fnaadb
+
+# Common utilities
+/src/common/ @fnaadb
+
+# Tests
+/tests/ @fnaadb
+
+# CI/CD and configuration
+/.github/ @fnaadb
+/configs/ @fnaadb
+/databricks.yml @fnaadb
+
+# Documentation
+*.md @fnaadb
+/docs/ @fnaadb

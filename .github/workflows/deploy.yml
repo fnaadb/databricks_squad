@@ -1,0 +1,71 @@
+name: Deploy to Databricks
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      run_pipeline:
+        description: 'Run pipeline after deploy'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+          
+      - name: Build wheel
+        run: |
+          pip install build
+          python -m build --wheel
+          
+      - name: Deploy bundle
+        run: |
+          databricks bundle deploy -t ${{ inputs.environment }}
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          
+      - name: Run pipeline (if requested)
+        if: inputs.run_pipeline
+        run: |
+          databricks bundle run medallion_pipeline -t ${{ inputs.environment }}
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Deployment status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment to ${{ inputs.environment }} successful"
+          else
+            echo "❌ Deployment to ${{ inputs.environment }} failed"
+            exit 1
+          fi

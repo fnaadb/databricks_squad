@@ -1,0 +1,71 @@
+# Production Environment Configuration
+
+environment: prod
+debug: false
+
+# Catalog settings
+catalog:
+  name: squad
+  create_if_not_exists: false  # Should already exist
+
+# Schema settings
+schemas:
+  bronze: bronze
+  silver: silver
+  gold: gold
+
+# Storage paths
+storage:
+  raw_landing: /Volumes/squad/raw/landing
+  bronze_checkpoint: /Volumes/squad/bronze/checkpoints
+  silver_checkpoint: /Volumes/squad/silver/checkpoints
+
+# Compute settings
+compute:
+  cluster_type: job
+  num_workers: 4
+  driver_node_type: Standard_DS4_v2
+  node_type: Standard_DS4_v2
+  spark_version: "14.3.x-scala2.12"
+  autoscale:
+    enabled: true
+    min_workers: 2
+    max_workers: 8
+
+# Processing settings
+processing:
+  batch_size: 100000
+  max_files_per_trigger: 100
+  trigger_interval: "1 minute"
+
+# Data quality thresholds (stricter for prod)
+quality:
+  null_threshold_pct: 1.0
+  duplicate_threshold_pct: 0.1
+  quarantine_enabled: true
+  fail_on_threshold_breach: true
+
+# Logging
+logging:
+  level: WARNING
+  structured: true
+  include_spark_logs: false
+
+# Feature flags
+features:
+  streaming_enabled: true
+  liquid_clustering: true
+  auto_optimize: true
+
+# Monitoring
+monitoring:
+  metrics_enabled: true
+  alert_on_failure: true
+  alert_email: data-platform@company.com
+
+# Retention
+retention:
+  bronze_days: 90
+  silver_days: 365
+  gold_days: 730
+  quarantine_days: 30

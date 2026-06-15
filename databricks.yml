@@ -1,0 +1,133 @@
+# Databricks Asset Bundle Configuration
+# https://docs.databricks.com/dev-tools/bundles/
+
+bundle:
+  name: databricks_squad
+
+workspace:
+  host: https://adb-2616464146674556.16.azuredatabricks.net
+
+variables:
+  catalog:
+    description: Unity Catalog name
+    default: squad
+  warehouse_id:
+    description: SQL warehouse ID for queries
+  
+include:
+  - resources/*.yml
+
+artifacts:
+  squad_wheel:
+    type: whl
+    path: .
+
+resources:
+  jobs:
+    medallion_pipeline:
+      name: "[${bundle.target}] Medallion Pipeline"
+      description: "Bronze → Silver → Gold pipeline"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: UTC
+      email_notifications:
+        on_failure:
+          - data-platform@company.com
+      tasks:
+        - task_key: bronze_ingestion
+          notebook_task:
+            notebook_path: ./notebooks/01_bronze_ingestion.py
+            base_parameters:
+              catalog: ${var.catalog}
+              env: ${bundle.target}
+          job_cluster_key: pipeline_cluster
+          
+        - task_key: silver_transforms
+          depends_on:
+            - task_key: bronze_ingestion
+          notebook_task:
+            notebook_path: ./notebooks/02_silver_transforms.py
+            base_parameters:
+              catalog: ${var.catalog}
+              env: ${bundle.target}
+          job_cluster_key: pipeline_cluster
+          
+        - task_key: gold_analytics
+          depends_on:
+            - task_key: silver_transforms
+          notebook_task:
+            notebook_path: ./notebooks/03_gold_analytics.py
+            base_parameters:
+              catalog: ${var.catalog}
+              env: ${bundle.target}
+          job_cluster_key: pipeline_cluster
+          
+        - task_key: validation
+          depends_on:
+            - task_key: gold_analytics
+          notebook_task:
+            notebook_path: ./notebooks/99_validation_and_smoke_tests.py
+            base_parameters:
+              catalog: ${var.catalog}
+              env: ${bundle.target}
+          job_cluster_key: pipeline_cluster
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: Standard_DS3_v2
+            num_workers: 2
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+              spark.databricks.delta.autoCompact.enabled: "true"
+            custom_tags:
+              project: databricks_squad
+              layer: medallion
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-2616464146674556.16.azuredatabricks.net
+    variables:
+      catalog: squad_dev
+    resources:
+      jobs:
+        medallion_pipeline:
+          name: "[DEV] Medallion Pipeline"
+          job_clusters:
+            - job_cluster_key: pipeline_cluster
+              new_cluster:
+                num_workers: 1
+
+  test:
+    mode: development
+    workspace:
+      host: https://adb-2616464146674556.16.azuredatabricks.net
+    variables:
+      catalog: squad_test
+    resources:
+      jobs:
+        medallion_pipeline:
+          name: "[TEST] Medallion Pipeline"
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-2616464146674556.16.azuredatabricks.net
+    variables:
+      catalog: squad
+    resources:
+      jobs:
+        medallion_pipeline:
+          name: "[PROD] Medallion Pipeline"
+          job_clusters:
+            - job_cluster_key: pipeline_cluster
+              new_cluster:
+                num_workers: 4
+                driver_node_type_id: Standard_DS4_v2
+                node_type_id: Standard_DS4_v2
+    run_as:
+      service_principal_name: medallion-pipeline-sp
