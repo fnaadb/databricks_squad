@@ -19,7 +19,7 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import *
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, ShortType, ByteType, BooleanType, DateType, TimestampType, DecimalType
 from pyspark.sql.window import Window
 from datetime import datetime, date, timedelta
 import hashlib
@@ -77,26 +77,42 @@ start_date = date(2020, 1, 1)
 end_date = date(2030, 12, 31)
 date_list = []
 
+# Define explicit schema for dim_date to ensure proper Databricks data types
+DIM_DATE_SCHEMA = StructType([
+    StructField("date_key", IntegerType(), False),
+    StructField("full_date", DateType(), False),
+    StructField("year", ShortType(), False),
+    StructField("quarter", ByteType(), False),
+    StructField("month", ByteType(), False),
+    StructField("month_name", StringType(), False),
+    StructField("week_of_year", ByteType(), False),
+    StructField("day_of_month", ByteType(), False),
+    StructField("day_of_week", ByteType(), False),
+    StructField("day_name", StringType(), False),
+    StructField("is_weekend", BooleanType(), False),
+    StructField("is_holiday", BooleanType(), False),
+])
+
 current = start_date
 while current <= end_date:
     date_key = int(current.strftime("%Y%m%d"))
-    date_list.append({
-        "date_key": date_key,
-        "full_date": current,
-        "year": current.year,
-        "quarter": (current.month - 1) // 3 + 1,
-        "month": current.month,
-        "month_name": current.strftime("%B"),
-        "week_of_year": current.isocalendar()[1],
-        "day_of_month": current.day,
-        "day_of_week": current.weekday() + 1,
-        "day_name": current.strftime("%A"),
-        "is_weekend": current.weekday() >= 5,
-        "is_holiday": False
-    })
+    date_list.append((
+        date_key,
+        current,
+        current.year,
+        (current.month - 1) // 3 + 1,
+        current.month,
+        current.strftime("%B"),
+        current.isocalendar()[1],
+        current.day,
+        current.weekday() + 1,
+        current.strftime("%A"),
+        current.weekday() >= 5,
+        False
+    ))
     current += timedelta(days=1)
 
-date_df = spark.createDataFrame(date_list)
+date_df = spark.createDataFrame(date_list, schema=DIM_DATE_SCHEMA)
 date_df.write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{SILVER_SCHEMA}.dim_date")
 print(f"Built dim_date with {len(date_list):,} records")
 
@@ -123,7 +139,7 @@ dim_customer = customers_bronze.filter(
     F.col("last_name"),
     F.col("email"),
     F.col("phone"),
-    F.col("date_of_birth"),
+    F.expr("try_cast(date_of_birth as date)").alias("date_of_birth"),
     F.col("country_code"),
     F.expr("try_cast(created_at as date)").alias("customer_since"),
     F.lit(True).alias("is_active"),  # Default to active since no status in bronze

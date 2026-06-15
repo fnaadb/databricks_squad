@@ -110,8 +110,8 @@ revenue_summary = fact_transactions.join(
     "year", "quarter", "month", "month_name", "channel", "merchant_category"
 ).agg(
     F.count("transaction_key").alias("transaction_count"),
-    F.sum("amount_usd").alias("total_revenue_usd"),
-    F.avg("amount_usd").alias("avg_transaction_amount"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("total_revenue_usd"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_transaction_amount"),
     F.countDistinct("customer_key").alias("unique_customers"),
     F.countDistinct("merchant_key").alias("unique_merchants"),
     F.sum(F.when(F.col("is_fraud") == True, 1).otherwise(0)).alias("fraud_count")
@@ -133,8 +133,8 @@ print("Building customer_analytics...")
 # Calculate customer-level metrics
 customer_metrics = fact_transactions.groupBy("customer_key").agg(
     F.count("transaction_key").alias("total_transactions"),
-    F.sum("amount_usd").alias("lifetime_value_usd"),
-    F.avg("amount_usd").alias("avg_transaction_amount"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("lifetime_value_usd"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_transaction_amount"),
     F.min("transaction_timestamp").alias("first_transaction_date"),
     F.max("transaction_timestamp").alias("last_transaction_date"),
     F.countDistinct("merchant_key").alias("unique_merchants_visited"),
@@ -179,8 +179,8 @@ print("Building merchant_analytics...")
 # Calculate merchant-level metrics
 merchant_metrics = fact_transactions.groupBy("merchant_key").agg(
     F.count("transaction_key").alias("total_transactions"),
-    F.sum("amount_usd").alias("total_revenue_usd"),
-    F.avg("amount_usd").alias("avg_transaction_amount"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("total_revenue_usd"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_transaction_amount"),
     F.countDistinct("customer_key").alias("unique_customers"),
     F.min("transaction_timestamp").alias("first_transaction_date"),
     F.max("transaction_timestamp").alias("last_transaction_date"),
@@ -204,8 +204,8 @@ merchant_analytics = merchant_metrics.join(
 ).withColumn(
     "fraud_rate",
     F.when(F.col("total_transactions") > 0, 
-           F.col("fraud_count") / F.col("total_transactions"))
-     .otherwise(0.0)
+           (F.col("fraud_count") / F.col("total_transactions")).cast("decimal(5,4)"))
+     .otherwise(F.lit(0.0).cast("decimal(5,4)"))
 ).withColumn("_created_timestamp", F.current_timestamp())
 
 merchant_analytics.write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{GOLD_SCHEMA}.merchant_analytics")
@@ -227,15 +227,15 @@ channel_performance = fact_transactions.join(
     "left"
 ).groupBy("year", "month", "channel").agg(
     F.count("transaction_key").alias("transaction_count"),
-    F.sum("amount_usd").alias("total_revenue_usd"),
-    F.avg("amount_usd").alias("avg_transaction_amount"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("total_revenue_usd"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_transaction_amount"),
     F.countDistinct("customer_key").alias("unique_customers"),
     F.sum(F.when(F.col("is_fraud") == True, 1).otherwise(0)).alias("fraud_count")
 ).withColumn(
     "fraud_rate",
     F.when(F.col("transaction_count") > 0, 
-           F.col("fraud_count") / F.col("transaction_count"))
-     .otherwise(0.0)
+           (F.col("fraud_count") / F.col("transaction_count")).cast("decimal(5,4)"))
+     .otherwise(F.lit(0.0).cast("decimal(5,4)"))
 ).withColumn("_created_timestamp", F.current_timestamp())
 
 channel_performance.write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{GOLD_SCHEMA}.channel_performance")
@@ -257,16 +257,16 @@ daily_kpis = fact_transactions.join(
     "left"
 ).groupBy("date_key", "full_date", "year", "month", "day_of_week", "day_name", "is_weekend").agg(
     F.count("transaction_key").alias("transaction_count"),
-    F.sum("amount_usd").alias("total_revenue"),
-    F.avg("amount_usd").alias("avg_order_value"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("total_revenue"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_order_value"),
     F.countDistinct("customer_key").alias("unique_customers"),
     F.countDistinct("merchant_key").alias("unique_merchants"),
     F.sum(F.when(F.col("is_fraud") == True, 1).otherwise(0)).alias("fraud_count")
 ).withColumn(
     "revenue_per_customer",
     F.when(F.col("unique_customers") > 0,
-           F.col("total_revenue") / F.col("unique_customers"))
-     .otherwise(0.0)
+           (F.col("total_revenue") / F.col("unique_customers")).cast("decimal(18,2)"))
+     .otherwise(F.lit(0.0).cast("decimal(18,2)"))
 ).withColumn("_created_timestamp", F.current_timestamp())
 
 daily_kpis.write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{GOLD_SCHEMA}.daily_kpis")
@@ -288,8 +288,8 @@ monthly_kpis = fact_transactions.join(
     "left"
 ).groupBy("year", "month", "month_name").agg(
     F.count("transaction_key").alias("transaction_count"),
-    F.sum("amount_usd").alias("total_revenue"),
-    F.avg("amount_usd").alias("avg_order_value"),
+    F.sum("amount_usd").cast("decimal(18,2)").alias("total_revenue"),
+    F.avg("amount_usd").cast("decimal(18,2)").alias("avg_order_value"),
     F.countDistinct("customer_key").alias("unique_customers"),
     F.countDistinct("merchant_key").alias("active_merchants"),
     F.sum(F.when(F.col("is_fraud") == True, 1).otherwise(0)).alias("fraud_count"),
@@ -297,18 +297,18 @@ monthly_kpis = fact_transactions.join(
 ).withColumn(
     "revenue_per_customer",
     F.when(F.col("unique_customers") > 0,
-           F.col("total_revenue") / F.col("unique_customers"))
-     .otherwise(0.0)
+           (F.col("total_revenue") / F.col("unique_customers")).cast("decimal(18,2)"))
+     .otherwise(F.lit(0.0).cast("decimal(18,2)"))
 ).withColumn(
     "avg_daily_revenue",
     F.when(F.col("active_days") > 0,
-           F.col("total_revenue") / F.col("active_days"))
-     .otherwise(0.0)
+           (F.col("total_revenue") / F.col("active_days")).cast("decimal(18,2)"))
+     .otherwise(F.lit(0.0).cast("decimal(18,2)"))
 ).withColumn(
     "fraud_rate",
     F.when(F.col("transaction_count") > 0,
-           F.col("fraud_count") / F.col("transaction_count"))
-     .otherwise(0.0)
+           (F.col("fraud_count") / F.col("transaction_count")).cast("decimal(5,4)"))
+     .otherwise(F.lit(0.0).cast("decimal(5,4)"))
 ).withColumn("_created_timestamp", F.current_timestamp())
 
 monthly_kpis.write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{GOLD_SCHEMA}.monthly_kpis")
