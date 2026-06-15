@@ -25,13 +25,63 @@ import string
 import uuid
 import hashlib
 
+# Define schemas for DataFrames (needed for columns with None values)
+CUSTOMERS_SCHEMA = StructType([
+    StructField("customer_id", StringType(), False),
+    StructField("first_name", StringType(), True),
+    StructField("last_name", StringType(), True),
+    StructField("email", StringType(), True),
+    StructField("phone", StringType(), True),
+    StructField("date_of_birth", StringType(), True),
+    StructField("country_code", StringType(), True),
+    StructField("created_at", StringType(), True),
+    StructField("updated_at", StringType(), True),
+])
+
+ACCOUNTS_SCHEMA = StructType([
+    StructField("account_id", StringType(), False),
+    StructField("customer_id", StringType(), True),
+    StructField("account_type", StringType(), True),
+    StructField("account_number", StringType(), True),
+    StructField("balance", StringType(), True),
+    StructField("currency", StringType(), True),
+    StructField("status", StringType(), True),
+    StructField("opened_date", StringType(), True),
+    StructField("closed_date", StringType(), True),
+])
+
+MERCHANTS_SCHEMA = StructType([
+    StructField("merchant_id", StringType(), False),
+    StructField("merchant_name", StringType(), True),
+    StructField("category", StringType(), True),
+    StructField("country_code", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("mcc_code", StringType(), True),
+])
+
+TRANSACTIONS_SCHEMA = StructType([
+    StructField("transaction_id", StringType(), False),
+    StructField("customer_id", StringType(), True),
+    StructField("account_id", StringType(), True),
+    StructField("merchant_id", StringType(), True),
+    StructField("transaction_date", StringType(), True),
+    StructField("transaction_timestamp", StringType(), True),
+    StructField("amount", StringType(), True),
+    StructField("currency", StringType(), True),
+    StructField("transaction_type", StringType(), True),
+    StructField("status", StringType(), True),
+    StructField("channel", StringType(), True),
+    StructField("country_code", StringType(), True),
+    StructField("description", StringType(), True),
+])
+
 # Configuration
-CATALOG = "squad"
+CATALOG = "purviewcatalog"
 BRONZE_SCHEMA = "bronze"
 
-# Ensure catalog and schema exist
-spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{BRONZE_SCHEMA}")
+# Ensure schema exists (catalog already exists)
+spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {BRONZE_SCHEMA}")
 
 # Batch ID for this run
 batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -180,7 +230,7 @@ for i in range(NUM_CUSTOMERS):
         "updated_at": created_at.strftime("%Y-%m-%d %H:%M:%S"),
     })
 
-customers_df = spark.createDataFrame(customers_data)
+customers_df = spark.createDataFrame(customers_data, schema=CUSTOMERS_SCHEMA)
 print(f"Generated {customers_df.count():,} customers")
 customers_df.show(5, truncate=False)
 
@@ -229,7 +279,7 @@ for customer_id in customer_ids:
     
     customer_to_accounts[customer_id] = customer_accounts
 
-accounts_df = spark.createDataFrame(accounts_data)
+accounts_df = spark.createDataFrame(accounts_data, schema=ACCOUNTS_SCHEMA)
 print(f"Generated {accounts_df.count():,} accounts")
 accounts_df.show(5, truncate=False)
 
@@ -272,7 +322,7 @@ for i in range(NUM_MERCHANTS):
         "mcc_code": mcc_code,
     })
 
-merchants_df = spark.createDataFrame(merchants_data)
+merchants_df = spark.createDataFrame(merchants_data, schema=MERCHANTS_SCHEMA)
 print(f"Generated {merchants_df.count():,} merchants")
 merchants_df.show(5, truncate=False)
 
@@ -380,7 +430,7 @@ for i in range(NUM_TRANSACTIONS):
     if (i + 1) % 200000 == 0:
         print(f"  Generated {i + 1:,} transactions...")
 
-transactions_df = spark.createDataFrame(transactions_data)
+transactions_df = spark.createDataFrame(transactions_data, schema=TRANSACTIONS_SCHEMA)
 print(f"Generated {transactions_df.count():,} transactions")
 
 # COMMAND ----------
